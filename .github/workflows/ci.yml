@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Ordinary build + the full 98-test suite, on both Linux and macOS.
+  # This is the baseline check: does it build cleanly and do the tests
+  # actually pass, on two different platforms/compilers/toolchains.
+  test:
+    name: Build & test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build
+
+      - name: Build
+        run: cmake --build build -j 4
+
+      - name: Run test suite
+        run: ctest --test-dir build --output-on-failure
+
+  # The same suite again, but compiled with ThreadSanitizer and run
+  # under it. This is the check that actually matters most for a
+  # concurrency-heavy project like this one: a test can pass while the
+  # code underneath it has a real data race that just didn't happen to
+  # manifest on that particular run. Every phase of this project was
+  # manually verified this way during development (see the README); this
+  # job makes that verification automatic and continuous instead of
+  # something that has to be remembered and re-run by hand.
+  #
+  # Benchmarks are excluded here (MVCC_BUILD_BENCHMARKS=OFF): the
+  # benchmark is a standalone throughput-measurement tool, not a
+  # correctness test, and running it under a sanitizer's instrumentation
+  # overhead would only produce meaningless timing numbers while adding
+  # build time for no verification value.
+  thread-sanitizer:
+    name: ThreadSanitizer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure with ThreadSanitizer
+        run: >
+          cmake -S . -B build-tsan
+          -DMVCC_SANITIZE=thread
+          -DCMAKE_BUILD_TYPE=Debug
+          -DMVCC_BUILD_BENCHMARKS=OFF
+
+      - name: Build
+        run: cmake --build build-tsan -j 4
+
+      - name: Run test suite under ThreadSanitizer
+        run: ctest --test-dir build-tsan --output-on-failure
