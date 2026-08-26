@@ -18,7 +18,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Configure
         run: cmake -S . -B build
@@ -33,10 +33,24 @@ jobs:
   # under it. This is the check that actually matters most for a
   # concurrency-heavy project like this one: a test can pass while the
   # code underneath it has a real data race that just didn't happen to
-  # manifest on that particular run. Every phase of this project was
-  # manually verified this way during development (see the README); this
-  # job makes that verification automatic and continuous instead of
-  # something that has to be remembered and re-run by hand.
+  # manifest on that particular run.
+  #
+  # Linux only, deliberately, and only after real investigation: a
+  # trivial 5-line program with zero connection to this codebase
+  # (spawn a thread, increment an int, join) segfaults under
+  # -fsanitize=thread on macOS/arm64 with the current AppleClang
+  # toolchain. Two documented, real fixes for known TSan-on-macOS
+  # issues were tried directly against that reproduction and neither
+  # resolved it: disabling the malloc nano zone (MallocNanoZone=0),
+  # and ad-hoc codesigning the binary with the get-task-allow
+  # entitlement Apple Silicon requires for certain runtime
+  # instrumentation. This matches a long-standing, still-open category
+  # of TSan/macOS/arm64 compatibility issue reported upstream over
+  # several years with no universal fix. Given that, ThreadSanitizer
+  # verification runs here on Linux, where it's stable and where every
+  # phase of this project was actually developed and verified; the
+  # plain (non-sanitized) test suite above still covers macOS for
+  # ordinary correctness.
   #
   # Benchmarks are excluded here (MVCC_BUILD_BENCHMARKS=OFF): the
   # benchmark is a standalone throughput-measurement tool, not a
@@ -49,9 +63,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Configure with ThreadSanitizer
         run: >
@@ -65,3 +79,4 @@ jobs:
 
       - name: Run test suite under ThreadSanitizer
         run: ctest --test-dir build-tsan --output-on-failure
+      

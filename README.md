@@ -127,9 +127,9 @@ CI does both of these automatically on every push (see the badge up top).
 
 ## Testing
 
-98 tests. Split roughly into normal unit tests (edge cases, empty keys, double deletes, that kind of thing) and concurrency stress tests that actually try to break things with lots of threads — e.g. one test runs a background GC thread as aggressively as possible while a reader holds an old snapshot open and 16 other threads hammer writes, just to make sure GC never rips away a version someone still needs.
+98 tests — 82 unit tests (edge cases, empty keys, double deletes, that kind of thing) and 16 concurrency stress tests that actually try to break things with lots of threads — e.g. one test runs a background GC thread as aggressively as possible while a reader holds an old snapshot open and 16 other threads hammer writes, just to make sure GC never rips away a version someone still needs.
 
-Everything's also been run under ThreadSanitizer, which actually catches races at runtime instead of just hoping the tests happen to expose one. CI runs the whole suite (regular + TSan) on both Linux and macOS on every push.
+Everything's also been run under ThreadSanitizer, which actually catches races at runtime instead of just hoping the tests happen to expose one. CI runs the regular suite on both Linux and macOS on every push, and the ThreadSanitizer variant on Linux — TSan turned out to be genuinely broken on the current macOS/Apple Silicon toolchain (a trivial, unrelated program segfaults under it, independent of anything in this codebase), so that check runs where it's actually reliable rather than producing a flaky pass/fail unrelated to code quality.
 
 ## Benchmarks — and the honest results
 
